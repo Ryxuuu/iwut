@@ -1,6 +1,12 @@
 import { Stack } from "expo-router";
-import { useState } from "react";
-import { Pressable, ScrollView, Text, useWindowDimensions } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+} from "react-native";
 import Toast from "react-native-toast-message";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -11,6 +17,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useHaptics } from "@/hooks/use-haptics";
 import { useMarkRouteInteractive } from "@/hooks/use-mark-route-interactive";
 import { type Lang, useT } from "@/lib/i18n";
+import { reportError } from "@/lib/report";
 import { useScheduleStore } from "@/store/schedule";
 import { useSettingsStore } from "@/store/settings";
 import { type ThemeMode, useThemeStore } from "@/store/theme";
@@ -44,6 +51,8 @@ export default function AppearanceScreen() {
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showBgPicker, setShowBgPicker] = useState(false);
+  const pendingImagePick = useRef(false);
+  const imagePickInProgress = useRef(false);
 
   const deleteBgFile = async (uri: string | null) => {
     if (!uri) return;
@@ -55,11 +64,7 @@ export default function AppearanceScreen() {
     } catch {}
   };
 
-  const handlePickImage = async () => {
-    haptic();
-    // 先关闭 BottomSheet，避免 expo-image-picker 在 RN Modal上下文
-    // 调用 .launch() 触发 unregistered ActivityResultLauncher
-    setShowBgPicker(false);
+  const pickImage = async () => {
     let tempCroppedUri: string | null = null;
     try {
       const ImagePicker = await import("expo-image-picker");
@@ -105,6 +110,7 @@ export default function AppearanceScreen() {
       });
     } catch (error) {
       if (isCropCancelled(error)) return;
+      reportError(error, { module: "appearance", action: "set-background" });
       Toast.show({
         type: "error",
         text1: t("appearance.bgSetFailed"),
@@ -119,7 +125,27 @@ export default function AppearanceScreen() {
           if (temp.exists) temp.delete();
         } catch {}
       }
+      imagePickInProgress.current = false;
     }
+  };
+
+  const handlePickImage = () => {
+    if (imagePickInProgress.current) return;
+    imagePickInProgress.current = true;
+    haptic();
+    setShowBgPicker(false);
+    if (Platform.OS === "ios") {
+      // 需要等待原生 Modal 关闭
+      pendingImagePick.current = true;
+    } else {
+      void pickImage();
+    }
+  };
+
+  const handleBgPickerDismiss = () => {
+    if (!pendingImagePick.current) return;
+    pendingImagePick.current = false;
+    void pickImage();
   };
 
   const handleRemoveBg = async () => {
@@ -208,6 +234,7 @@ export default function AppearanceScreen() {
       <BottomSheet
         visible={showBgPicker}
         onClose={() => setShowBgPicker(false)}
+        onDismiss={handleBgPickerDismiss}
         title={t("appearance.bgSheetTitle")}
       >
         <Pressable

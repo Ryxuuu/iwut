@@ -28,11 +28,13 @@ function useKeyboardHeight() {
 export function BottomSheet({
   visible,
   onClose,
+  onDismiss,
   title,
   children,
 }: Readonly<{
   visible: boolean;
   onClose: () => void;
+  onDismiss?: () => void;
   title?: string;
   children: ReactNode;
 }>) {
@@ -45,6 +47,7 @@ export function BottomSheet({
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      onDismiss={onDismiss}
     >
       <Pressable className="flex-1 justify-end bg-black/40" onPress={onClose}>
         <Pressable

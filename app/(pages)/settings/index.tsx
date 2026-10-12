@@ -228,7 +228,7 @@ export default function SettingsScreen() {
       }
 
       const zipData = await archive.generateAsync({ type: "uint8array" });
-      const zipName = `dev.tokenteam.net_logs_${Date.now()}.zip`;
+      const zipName = `dev.tokenteam.iwut_logs_${Date.now()}.zip`;
       const zipFile = new File(Paths.cache, zipName);
       await zipFile.write(zipData);
 
