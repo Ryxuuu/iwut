@@ -4,7 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -23,6 +23,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useHaptics } from "@/hooks/use-haptics";
 import { useMarkRouteInteractive } from "@/hooks/use-mark-route-interactive";
 import { useT } from "@/lib/i18n";
+import { useDeveloperOptionsStore } from "@/store/developer-options";
 import { useUpdateStore } from "@/store/update";
 
 const icon = require("@/assets/images/icon.png");
@@ -41,6 +42,7 @@ export default function AboutScreen() {
   const checking = useUpdateStore((s) => s.checking);
   const check = useUpdateStore((s) => s.check);
   const openUpdateModal = useUpdateStore((s) => s.openModal);
+  const versionTaps = useRef({ count: 0, lastTapAt: 0 });
 
   const copyToClipboard = useCallback(
     async (label: string, value: string) => {
@@ -53,6 +55,35 @@ export default function AboutScreen() {
     },
     [t],
   );
+
+  const handleVersionPress = () => {
+    if (!IS_DEV) return;
+
+    const { enabled, setEnabled } = useDeveloperOptionsStore.getState();
+    if (enabled) {
+      Toast.show({
+        type: "info",
+        text1: t("developer.enabled"),
+        position: "bottom",
+      });
+      return;
+    }
+
+    const now = Date.now();
+    const taps = versionTaps.current;
+    taps.count = now - taps.lastTapAt <= 1500 ? taps.count + 1 : 1;
+    taps.lastTapAt = now;
+
+    if (taps.count >= 5) {
+      taps.count = 0;
+      setEnabled(true);
+      Toast.show({
+        type: "success",
+        text1: t("developer.enabled"),
+        position: "bottom",
+      });
+    }
+  };
 
   const handleCheckUpdate = useCallback(async () => {
     await check({ force: true });
@@ -96,10 +127,18 @@ export default function AboutScreen() {
           <Text className="mt-4 text-xl font-semibold text-neutral-900 dark:text-neutral-100">
             {t("about.appName")}
           </Text>
-          <Text className="mt-1.5 text-sm text-neutral-400 dark:text-neutral-500">
-            {version}
-            {IS_DEV ? " (Dev)" : ""}
-          </Text>
+          <Pressable
+            disabled={!IS_DEV}
+            onPress={handleVersionPress}
+            accessibilityRole="button"
+            accessibilityLabel={t("about.version")}
+            hitSlop={8}
+          >
+            <Text className="mt-1.5 text-sm text-neutral-400 dark:text-neutral-500">
+              {version}
+              {IS_DEV ? " (Dev)" : ""}
+            </Text>
+          </Pressable>
         </View>
 
         <MenuGroup title={t("about.infoGroup")}>

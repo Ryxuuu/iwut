@@ -302,6 +302,8 @@
   },
   "developer": {
     "title": "Developer options",
+    "enable": "Enable developer options",
+    "enabled": "Developer options enabled",
     "sentrySection": "Sentry",
     "sentryTest": "Send test event",
     "sentryTestSent": "Test event sent",

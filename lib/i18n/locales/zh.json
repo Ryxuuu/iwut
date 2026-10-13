@@ -301,7 +301,9 @@
     "customPlaceholder": "1-120"
   },
   "developer": {
-    "title": "开发人员选项",
+    "title": "开发者选项",
+    "enable": "启用开发者选项",
+    "enabled": "已启用开发者选项",
     "sentrySection": "Sentry",
     "sentryTest": "发送测试事件",
     "sentryTestSent": "测试事件已发送",

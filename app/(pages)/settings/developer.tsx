@@ -1,20 +1,23 @@
 import * as Sentry from "@sentry/react-native";
 import { Redirect, Stack } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, Switch, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { MenuGroup, MenuItem } from "@/components/ui/menu-item";
 import { IS_DEV } from "@/constants/is-dev";
 import { useMarkRouteInteractive } from "@/hooks/use-mark-route-interactive";
 import { useT } from "@/lib/i18n";
+import { useDeveloperOptionsStore } from "@/store/developer-options";
 
 export default function DeveloperSettingsScreen() {
   useMarkRouteInteractive();
   const t = useT();
   const [sendingSentryTest, setSendingSentryTest] = useState(false);
+  const enabled = useDeveloperOptionsStore((s) => s.enabled);
+  const setEnabled = useDeveloperOptionsStore((s) => s.setEnabled);
 
-  if (!IS_DEV) return <Redirect href="/" />;
+  if (!IS_DEV || !enabled) return <Redirect href="/(tabs)/user" />;
 
   const handleSentryTest = async () => {
     if (__DEV__) {
@@ -63,6 +66,22 @@ export default function DeveloperSettingsScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerClassName="px-4 pt-4"
       >
+        <MenuGroup>
+          <MenuItem
+            icon="developer-mode"
+            iconBg="#FF9500"
+            label={t("developer.enable")}
+            showArrow={false}
+            onPress={() => setEnabled(false)}
+            right={
+              <Switch
+                accessibilityLabel={t("developer.enable")}
+                value={enabled}
+                onValueChange={setEnabled}
+              />
+            }
+          />
+        </MenuGroup>
         <MenuGroup title={t("developer.sentrySection")}>
           <MenuItem
             icon="bug-report"

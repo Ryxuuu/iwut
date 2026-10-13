@@ -24,6 +24,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useMarkRouteInteractive } from "@/hooks/use-mark-route-interactive";
 import { useT } from "@/lib/i18n";
 import { reportError } from "@/lib/report";
+import { useDeveloperOptionsStore } from "@/store/developer-options";
 import { useUserBindStore } from "@/store/user-bind";
 
 const HEADER_GRADIENT = {
@@ -322,6 +323,7 @@ export default function UserScreen() {
   useMarkRouteInteractive();
   const t = useT();
   const isDark = useColorScheme() === "dark";
+  const developerOptionsEnabled = useDeveloperOptionsStore((s) => s.enabled);
   return (
     <View className="flex-1 bg-neutral-100 dark:bg-neutral-900">
       <HeaderSection isDark={isDark}>
@@ -372,7 +374,7 @@ export default function UserScreen() {
               label={t("user.menuAbout")}
               href="/about"
             />
-            {IS_DEV && (
+            {IS_DEV && developerOptionsEnabled && (
               <MenuItem
                 icon="developer-mode"
                 iconBg="#FF9500"
