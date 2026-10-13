@@ -1,6 +1,8 @@
 name: Build Android
 
 "on":
+  pull_request:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       development:
@@ -30,6 +32,10 @@ concurrency:
 
 jobs:
   prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'build-android' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       profiles: ${{ steps.profiles.outputs.profiles }}
@@ -38,7 +44,7 @@ jobs:
         id: profiles
         env:
           DEVELOPMENT: ${{ inputs.development }}
-          PREVIEW: ${{ inputs.preview }}
+          PREVIEW: ${{ github.event_name == 'pull_request' || inputs.preview }}
           PRODUCTION: ${{ inputs.production }}
         run: |
           node <<'EOF'
@@ -64,6 +70,9 @@ jobs:
         profile: ${{ fromJSON(needs.prepare.outputs.profiles) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -86,14 +95,14 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iwut-${{ matrix.profile }}
+          name: ${{ github.event_name == 'pull_request' && format('iwut-pr-{0}', github.event.pull_request.number) || 'iwut' }}-${{ matrix.profile }}
           path: ${{ runner.temp }}/iwut-${{ matrix.profile }}.apk
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
 
       - name: Upload to Cloudflare R2
-        if: ${{ inputs.upload }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload }}
         env:
           ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
           BUCKET: ${{ secrets.BUCKET }}
