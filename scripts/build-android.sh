@@ -1,28 +1,20 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
 PROFILE="$1"
 
 if [ -z "$PROFILE" ]; then
-  echo "Usage: $0 <profile>"
+  echo "Usage: $0 <profile> [eas build options...]"
   exit 1
 fi
-
-for cmd in unzip:unzip wget:wget; do
-  command -v "${cmd%%:*}" &> /dev/null || PKGS+=" ${cmd##*:}"
-done
-if [ -n "$PKGS" ]; then
-  apt-get update && apt-get install -y $PKGS
-fi
-
-export SDKMAN_DIR="${SDKMAN_DIR:-$HOME/.sdkman}"
-[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ] && . "$SDKMAN_DIR/bin/sdkman-init.sh"
+shift
 
 if ! command -v java &> /dev/null; then
+  export SDKMAN_DIR="${SDKMAN_DIR:-$HOME/.sdkman}"
   if [ ! -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]; then
-    curl -s "https://get.sdkman.io" | bash
-    . "$SDKMAN_DIR/bin/sdkman-init.sh"
+    curl -fsSL "https://get.sdkman.io" | bash
   fi
+  . "$SDKMAN_DIR/bin/sdkman-init.sh"
   sdk install java 21.0.7-tem
   export JAVA_HOME="$SDKMAN_DIR/candidates/java/current"
   export PATH="$JAVA_HOME/bin:$PATH"
@@ -30,13 +22,12 @@ else
   java -version
 fi
 
-export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/refs/heads/master/install.sh | bash
-fi
-. "$NVM_DIR/nvm.sh"
-
 if ! command -v node &> /dev/null; then
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/refs/heads/master/install.sh | bash
+  fi
+  . "$NVM_DIR/nvm.sh"
   nvm install --lts
 fi
 
@@ -46,24 +37,43 @@ if ! command -v bun &> /dev/null; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
-export ANDROID_HOME=/opt/android-sdk
-export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 
 if ! command -v sdkmanager &> /dev/null; then
-  mkdir -p /opt/android-sdk/cmdline-tools
+  PKGS=()
+  for cmd in unzip wget; do
+    command -v "$cmd" &> /dev/null || PKGS+=("$cmd")
+  done
+  if [ "${#PKGS[@]}" -gt 0 ]; then
+    APT=(apt-get)
+    if [ "$EUID" -ne 0 ]; then
+      APT=(sudo apt-get)
+    fi
+    "${APT[@]}" update
+    "${APT[@]}" install -y "${PKGS[@]}"
+  fi
+  mkdir -p "$ANDROID_HOME/cmdline-tools"
   wget https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip -O /tmp/tools.zip
-  unzip /tmp/tools.zip -d /opt/android-sdk/cmdline-tools
-  mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest
+  unzip /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
+  mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
   rm /tmp/tools.zip
 fi
 
-if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
-  yes | sdkmanager --licenses || true
-  sdkmanager \
-    "platform-tools" \
-    "platforms;android-36" \
-    "build-tools;36.0.0" \
-    "ndk;27.1.12297006"
+SDK_PACKAGES=()
+for package in \
+  "platform-tools" \
+  "platforms;android-36" \
+  "build-tools;36.0.0" \
+  "ndk;27.1.12297006"; do
+  package_dir=${package//;/\/}
+  if [ ! -f "$ANDROID_HOME/$package_dir/package.xml" ]; then
+    SDK_PACKAGES+=("$package")
+  fi
+done
+if [ "${#SDK_PACKAGES[@]}" -gt 0 ]; then
+  yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses || true
+  sdkmanager --sdk_root="$ANDROID_HOME" "${SDK_PACKAGES[@]}"
 fi
 
 if ! command -v eas &> /dev/null; then
@@ -74,4 +84,4 @@ bun install --frozen-lockfile
 
 rm -rf "${TMPDIR:-/tmp}/metro-cache" "${TMPDIR:-/tmp}"/haste-map-*
 
-eas build --profile "$PROFILE" --platform android --local
+eas build --profile "$PROFILE" --platform android --local "$@"

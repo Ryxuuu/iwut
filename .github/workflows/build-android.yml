@@ -1,0 +1,103 @@
+name: Build Android
+
+"on":
+  workflow_dispatch:
+    inputs:
+      development:
+        description: Development
+        type: boolean
+        default: false
+      preview:
+        description: Preview
+        type: boolean
+        default: true
+      production:
+        description: Production
+        type: boolean
+        default: false
+      upload:
+        description: Upload to Cloudflare R2
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-build
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      profiles: ${{ steps.profiles.outputs.profiles }}
+    steps:
+      - name: Select profiles
+        id: profiles
+        env:
+          DEVELOPMENT: ${{ inputs.development }}
+          PREVIEW: ${{ inputs.preview }}
+          PRODUCTION: ${{ inputs.production }}
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs');
+          const profiles = ['development', 'preview', 'production'].filter(
+            profile => process.env[profile.toUpperCase()] === 'true'
+          );
+          if (profiles.length === 0) {
+            console.error('::error::Select at least one build profile.');
+            process.exit(1);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `profiles=${JSON.stringify(profiles)}\n`);
+          EOF
+
+  build:
+    name: Build ${{ matrix.profile }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(needs.prepare.outputs.profiles) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Build Android
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          bash scripts/build-android.sh "$PROFILE" \
+            --non-interactive --output "$RUNNER_TEMP/iwut-${PROFILE}.apk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iwut-${{ matrix.profile }}
+          path: ${{ runner.temp }}/iwut-${{ matrix.profile }}.apk
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload to Cloudflare R2
+        if: ${{ inputs.upload }}
+        env:
+          ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
+          BUCKET: ${{ secrets.BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          PROFILE: ${{ matrix.profile }}
+        run: bash scripts/upload-android.sh "$PROFILE" "$RUNNER_TEMP/iwut-${PROFILE}.apk"
