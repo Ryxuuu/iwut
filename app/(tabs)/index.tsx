@@ -325,6 +325,15 @@ export default function HomeScreen() {
   const { position, handler: pagerScrollHandler } =
     usePagerPosition(initialPage);
 
+  const todayDateIndex = getShanghaiDateIndex(nowMs);
+  const previousDateIndex = useRef(todayDateIndex);
+  useEffect(() => {
+    if (previousDateIndex.current === todayDateIndex) return;
+    previousDateIndex.current = todayDateIndex;
+    setActiveTab(0);
+    pagerRef.current?.setPageWithoutAnimation(0);
+  }, [todayDateIndex]);
+
   const handlePageSelected = useCallback(
     (e: PagerViewOnPageSelectedEvent) => {
       const page = e.nativeEvent.position;
