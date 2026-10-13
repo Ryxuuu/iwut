@@ -56,7 +56,8 @@ function createEmptySlot(): TimeSlot {
 function recordsToSlots(records: Course[]): TimeSlot[] {
   const map = new Map<string, TimeSlot>();
   for (const r of records) {
-    const key = `${r.day}-${r.sectionStart}-${r.sectionEnd}-${r.room}`;
+    const room = r.room ?? "";
+    const key = `${r.day}-${r.sectionStart}-${r.sectionEnd}-${room}`;
     if (map.has(key)) {
       const slot = map.get(key)!;
       for (let w = r.weekStart; w <= r.weekEnd; w++) slot.weeks.add(w);
@@ -67,7 +68,7 @@ function recordsToSlots(records: Course[]): TimeSlot[] {
         day: r.day,
         sectionStart: r.sectionStart,
         sectionEnd: r.sectionEnd,
-        room: r.room,
+        room,
         weeks,
       });
     }
@@ -141,7 +142,8 @@ export default function AddEditCourseScreen() {
     return params.prefillName ?? "";
   });
   const [teacher, setTeacher] = useState(() => {
-    if (isEdit && existingRecords.length > 0) return existingRecords[0].teacher;
+    if (isEdit && existingRecords.length > 0)
+      return existingRecords[0].teacher ?? "";
     return params.prefillTeacher ?? "";
   });
   const [slots, setSlots] = useState<TimeSlot[]>(() => {
